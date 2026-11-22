@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foco · Pomodoro anti-procrastinación</title>
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Lily+Script+One&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================
+   1. TOKENS
+   Escala de espaciado: 4 / 8 / 16 / 24 / 32 / 48
+   Paleta: neutros + 1 acento dinámico (cambia según el modo)
+   ========================================================== */
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #ff7a45; }
+
+:root {
+  --bg: #0e0f12;
+  --surface: #15171c;
+  --surface-2: #1c1f26;
+  --line: #292d37;
+  --text: #eceef2;
+  --muted: #9aa1ae;
+  --danger: #ff6b6b;
+  --gold: #ffc247;
+
+  --accent: #ff7a45;           /* Enfoque: cálido e intenso */
+  --on-accent: #0e0f12;
+
+  --s1: 4px; --s2: 8px; --s3: 16px; --s4: 24px; --s5: 32px; --s6: 48px;
+  --radius: 14px;
+
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  transition: --accent .4s ease-out;
+}
+body[data-mode="focus"] { --accent: #ff7a45; }
+body[data-mode="short"] { --accent: #4fd1c5; }   /* frío, relajante */
+body[data-mode="long"]  { --accent: #6aa8ff; }
+body[data-mode="quick"] { --accent: #ffc247; }   /* ámbar: arranque */
+@property --accent-ink { syntax: "<color>"; inherits: true; initial-value: #ff7a45; }
+/* --accent = relleno (botones, anillo); --accent-ink = versión legible para texto */
+body { --accent-ink: var(--accent); transition: --accent .4s ease-out, --accent-ink .4s ease-out; }
+
+/* ----- Paleta "Peonía" (como la imagen: degradado lila→durazno, rosa, lila, dorado, salvia) ----- */
+html[data-theme="peonia"] {
+  --page:
+    radial-gradient(60% 45% at 12% 8%, rgb(255 243 196 / .85), transparent 70%),
+    radial-gradient(50% 40% at 92% 92%, rgb(255 255 255 / .55), transparent 70%),
+    linear-gradient(160deg, #fbe3d3 0%, #efd2e4 45%, #cdb8e3 100%);
+  --bg: #fff8fb; --surface: rgb(255 255 255 / .62); --surface-2: #f7e9f3; --line: #e4cde0;
+  --text: #3d2a4a; --muted: #6f5a7d; --gold: #8a6108; --glow: #f3d66b; --on-accent: #3d2a4a;
+}
+html[data-theme="peonia"] body[data-mode="focus"] { --accent: #f4a0a0; --accent-ink: #b0405f; }  /* rosa salmón */
+html[data-theme="peonia"] body[data-mode="short"] { --accent: #b5d8c0; --accent-ink: #2f7a5c; }  /* salvia */
+html[data-theme="peonia"] body[data-mode="long"]  { --accent: #b9a2e8; --accent-ink: #6a4bb8; }  /* lila */
+html[data-theme="peonia"] body[data-mode="quick"] { --accent: #f2c94c; --accent-ink: #8a6108; }  /* dorado */
+html[data-theme="peonia"] .card {
+  border-color: rgb(255 240 180 / .9);
+  box-shadow: 0 0 22px rgb(255 236 170 / .45), 0 10px 32px rgb(176 120 170 / .16);
+  backdrop-filter: blur(6px);
+}
+html[data-theme="peonia"] .ring-bg { stroke: #f0dcec; }
+
+/* ----- Paleta "Peonía noche" (misma gama, en oscuro) ----- */
+html[data-theme="peonia-noche"] {
+  --bg: #1a1320; --surface: #241a2c; --surface-2: #2e2238; --line: #43324f;
+  --text: #f7ecf3; --muted: #b9a6c4; --gold: #e8c15a; --on-accent: #1a1320;
+}
+html[data-theme="peonia-noche"] body[data-mode="focus"] { --accent: #f4a3a0; }
+html[data-theme="peonia-noche"] body[data-mode="short"] { --accent: #a8d5ba; }
+html[data-theme="peonia-noche"] body[data-mode="long"]  { --accent: #b9a2e8; }
+html[data-theme="peonia-noche"] body[data-mode="quick"] { --accent: #e8c15a; }
+
+/* ==========================================================
+   2. BASE
+   ========================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--page, var(--bg));
+  color: var(--text);
+  font: 400 16px/1.5 var(--font-ui);
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; border-radius: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ==========================================================
+   3. LAYOUT (móvil primero; 2 columnas asimétricas en ≥ 880px)
+   ========================================================== */
+.app { max-width: 1080px; margin: 0 auto; padding: var(--s4) var(--s3) var(--s6); }
+header.top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s3); margin-bottom: var(--s4);
+}
+.brand { font: 700 14px/1 var(--font-mono); letter-spacing: .16em; text-transform: uppercase; }
+.brand span { color: var(--accent-ink); }
+.stats { display: flex; gap: var(--s3); font: 500 13px/1 var(--font-mono); color: var(--muted); }
+.stats b { color: var(--text); font-weight: 700; }
+
+.grid { display: grid; gap: var(--s4); }
+@media (min-width: 880px) {
+  .app { padding: var(--s5) var(--s5) var(--s6); }
+  .grid { grid-template-columns: 1.25fr 1fr; align-items: start; gap: var(--s5); }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--s4);
+}
+h2 { margin: 0 0 var(--s3); font: 600 13px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+
+/* ==========================================================
+   4. TEMPORIZADOR
+   ========================================================== */
+.modes {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s1);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: var(--s1);
+}
+.mode-btn {
+  min-height: 44px; border: 0; border-radius: 9px; background: transparent;
+  color: var(--muted); font-weight: 500; font-size: 14px;
+  transition: background-color .2s ease-out, color .2s ease-out;
+}
+.mode-btn:hover { color: var(--text); }
+.mode-btn[aria-pressed="true"] { background: var(--surface-2); color: var(--accent-ink); }
+
+.dial { position: relative; width: min(100%, 340px); margin: var(--s5) auto var(--s4); aspect-ratio: 1; }
+.dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--surface-2); stroke-width: 6; }
+.ring-fg {
+  fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s linear;
+}
+.dial-center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: var(--s2); }
+.clock { font: 500 clamp(56px, 18vw, 80px)/1 var(--font-mono); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.state { font: 500 12px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent-ink); }
+.active-label {
+  max-width: 220px; margin: 0 auto; color: var(--muted); font-size: 14px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.controls { display: grid; grid-template-columns: 1fr auto auto; gap: var(--s2); }
+.btn {
+  min-height: 48px; padding: 0 var(--s4); border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface-2); font-weight: 600;
+  transition: transform .15s ease-out, background-color .2s ease-out, border-color .2s ease-out;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-size: 16px; }
+.btn-primary:hover { border-color: var(--accent); filter: brightness(1.08); }
+
+.quick {
+  margin-top: var(--s3); width: 100%; min-height: 48px; border-radius: 12px;
+  border: 1px dashed var(--line); background: transparent; color: var(--text);
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  transition: border-color .2s ease-out, color .2s ease-out;
+}
+.quick:hover { border-color: var(--gold); color: var(--gold); }
+.quick small { color: var(--muted); font: 400 12px var(--font-mono); }
+
+/* Ajustes (details nativo = accesible sin JS extra) */
+details.settings { margin-top: var(--s4); border-top: 1px solid var(--line); padding-top: var(--s3); }
+details.settings summary {
+  list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center;
+  font: 600 13px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+details.settings summary::-webkit-details-marker { display: none; }
+details.settings summary::after { content: "+"; margin-left: auto; font-size: 18px; }
+details.settings[open] summary::after { content: "−"; }
+.set-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); margin-top: var(--s2); }
+.field label { display: block; margin-bottom: var(--s1); font-size: 12px; color: var(--muted); }
+.field input[type="number"] {
+  width: 100%; min-height: 44px; padding: 0 var(--s2);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  font-family: var(--font-mono);
+}
+.field input:hover { border-color: var(--muted); }
+.check { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s3); min-height: 44px; font-size: 14px; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+/* ==========================================================
+   5. TAREAS
+   ========================================================== */
+.add-form { display: grid; grid-template-columns: 1fr 72px auto; gap: var(--s2); margin-bottom: var(--s3); }
+.add-form input[type="text"], .add-form input[type="number"] {
+  min-height: 48px; padding: 0 var(--s3); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 12px; min-width: 0;
+}
+.add-form input[type="number"] { padding: 0 var(--s2); text-align: center; font-family: var(--font-mono); }
+.add-form input::placeholder { color: var(--muted); opacity: .75; }
+.add-form input:hover { border-color: var(--muted); }
+
+ul.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.task {
+  display: grid; grid-template-columns: 44px 1fr auto 44px; align-items: center;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+  transition: border-color .2s ease-out, background-color .2s ease-out;
+}
+.task.is-active { border-color: var(--accent); background: var(--surface-2); }
+.task.is-done .task-title { text-decoration: line-through; color: var(--muted); }
+.icon-btn {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  background: transparent; border: 0; border-radius: 10px; color: var(--muted);
+  transition: color .2s ease-out, background-color .2s ease-out;
+}
+.icon-btn:hover { color: var(--text); background: var(--surface-2); }
+.icon-btn.del:hover { color: var(--danger); }
+.checkbox { width: 20px; height: 20px; border: 2px solid var(--muted); border-radius: 6px; display: grid; place-items: center; }
+.is-done .checkbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.task-main {
+  min-height: 44px; padding: var(--s1) var(--s2); text-align: left; background: transparent; border: 0;
+  border-radius: 8px; overflow: hidden;
+}
+.task-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.task-hint { display: block; font: 400 11px var(--font-mono); letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+.is-active .task-hint { color: var(--accent-ink); }
+.pomos { font: 500 13px var(--font-mono); color: var(--muted); padding-right: var(--s1); white-space: nowrap; }
+.pomos b { color: var(--text); }
+.empty { text-align: center; padding: var(--s5) var(--s3); color: var(--muted); border: 1px dashed var(--line); border-radius: 12px; font-size: 14px; }
+.empty strong { display: block; color: var(--text); margin-bottom: var(--s1); }
+
+/* ==========================================================
+   6. AVISO DE FIN DE CICLO (notificación visual)
+   ========================================================== */
+.toast {
+  position: fixed; left: 50%; top: var(--s3); z-index: 10;
+  width: min(92vw, 420px); padding: var(--s3) var(--s4);
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgb(0 0 0 / .5);
+  display: flex; align-items: center; gap: var(--s3);
+  transform: translate(-50%, -16px); opacity: 0; pointer-events: none;
+  transition: transform .25s ease-out, opacity .25s ease-out;
+}
+.toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.toast p { margin: 0; flex: 1; font-size: 15px; }
+.toast p b { display: block; color: var(--accent-ink); }
+
+[hidden] { display: none !important; }
+
+/* ==========================================================
+   MÚSICA (solo visible en descansos)
+   ========================================================== */
+.music {
+  margin-top: var(--s3); padding: var(--s3); display: grid; gap: var(--s2);
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 12px;
+}
+.music h3 { margin: 0; font: 600 13px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent-ink); }
+.music-row { display: grid; grid-template-columns: 1fr auto; gap: var(--s2); }
+.music input[type="url"] {
+  min-height: 44px; padding: 0 var(--s3); min-width: 0;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+}
+.music input::placeholder { color: var(--muted); opacity: .75; }
+.music-msg { margin: 0; font-size: 13px; color: var(--muted); }
+.music-msg a { color: var(--accent-ink); }
+.music-frame iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 10px; }
+
+/* Selector de paleta */
+.themes { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
+.theme-btn {
+  min-height: 44px; padding: 0 var(--s3); display: inline-flex; align-items: center; gap: var(--s2);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px; font-size: 14px;
+  transition: border-color .2s ease-out;
+}
+.theme-btn:hover { border-color: var(--muted); }
+.theme-btn[aria-pressed="true"] { border-color: var(--accent); }
+.theme-btn i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.set-label { margin: var(--s3) 0 0; font-size: 12px; color: var(--muted); }
+
+/* ==========================================================
+   DEDICATORIA
+   ========================================================== */
+.dedication { margin-bottom: var(--s4); text-align: center; padding: var(--s4); border-color: var(--glow, var(--gold)); }
+@media (min-width: 880px) { .dedication { margin-bottom: var(--s5); padding: var(--s5); } }
+/* "Con cariño, para" con el mismo diseño del nombre */
+.ded-kicker {
+  margin: 0; font: 400 clamp(30px, 6.5vw, 42px)/1.2 "Lily Script One", "Brush Script MT", cursive;
+  color: #d9739f; text-shadow: 0 2px 0 rgb(217 115 159 / .3);
+}
+html[data-theme="noche"] .ded-kicker, html[data-theme="peonia-noche"] .ded-kicker { color: #f2a0c4; text-shadow: none; }
+.ded-name {
+  position: relative; display: inline-block; margin: var(--s2) 0; padding-right: .15em;
+  font: 400 clamp(60px, 14vw, 88px)/1.2 "Lily Script One", "Brush Script MT", cursive;
+  letter-spacing: 0; text-transform: none; color: #d9739f;
+  text-shadow: 0 2px 0 rgb(217 115 159 / .3);
+}
+.ded-name .h { position: absolute; fill: #c95f8e; }
+.ded-name .h1 { width: .3em; height: .3em; top: .02em; right: -.12em; }
+.ded-name .h2 { width: .2em; height: .2em; top: -.1em; right: .16em; transform: rotate(-12deg); }
+html[data-theme="noche"] .ded-name, html[data-theme="peonia-noche"] .ded-name { color: #f2a0c4; text-shadow: none; }
+html[data-theme="noche"] .ded-name .h, html[data-theme="peonia-noche"] .ded-name .h { fill: #f2a0c4; }
+.ded-text { margin: 0; max-width: 56ch; color: var(--text); white-space: pre-line; }
+.ded-text { margin: 0 auto; }
+
+/* Pulso del anillo al terminar */
+.dial.done { animation: pulse .6s ease-out 3; }
+@keyframes pulse { 50% { transform: scale(1.03); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+
+<body data-mode="focus">
+<div class="app">
+
+  <header class="top">
+    <div class="brand">Foco<span>.</span></div>
+    <div class="stats" aria-label="Estadísticas del día">
+      <span title="Bloques completados hoy">Hoy <b id="statToday">0</b></span>
+      <span title="Días seguidos con al menos un bloque">Racha <b id="statStreak">0</b>d</span>
+    </div>
+  </header>
+
+  <!-- ===== DEDICATORIA (el texto se define en el JS: DEDICATION_TO / DEDICATION_MESSAGES) ===== -->
+  <section class="card dedication" aria-label="Dedicatoria">
+    <div>
+      <p class="ded-kicker">Con cariño, para</p>
+      <h2 class="ded-name"><span id="dedTo"></span>
+        <svg class="h h2" aria-hidden="true"><use href="#heart"/></svg>
+        <svg class="h h1" aria-hidden="true"><use href="#heart"/></svg>
+      </h2>
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="heart" viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.7 4.5 6.4 4.5c2.2 0 3.8 1.3 5.6 3.4 1.8-2.1 3.4-3.4 5.6-3.4 3.7 0 5.5 3.9 4 7.3C19.5 16.4 12 21 12 21z"/></symbol>
+      </svg>
+      <p class="ded-text" id="dedText"></p>
+    </div>
+  </section>
+
+  <main class="grid">
+
+    <!-- ===== TEMPORIZADOR ===== -->
+    <section class="card" aria-label="Temporizador">
+      <div class="modes" role="group" aria-label="Modo">
+        <button class="mode-btn" data-mode="focus" aria-pressed="true">Enfoque</button>
+        <button class="mode-btn" data-mode="short" aria-pressed="false">Descanso corto</button>
+        <button class="mode-btn" data-mode="long"  aria-pressed="false">Descanso largo</button>
+      </div>
+
+      <div class="dial" id="dial">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="ring-bg" cx="50" cy="50" r="46" pathLength="100"/>
+          <circle class="ring-fg" id="ring" cx="50" cy="50" r="46" pathLength="100"/>
+        </svg>
+        <div class="dial-center">
+          <div class="clock" id="clock" role="timer" aria-live="off">25:00</div>
+          <div class="state" id="stateLabel">Enfoque</div>
+          <div class="active-label" id="activeLabel">Sin tarea activa</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn btn-primary" id="btnStart">Iniciar</button>
+        <button class="btn" id="btnReset" aria-label="Reiniciar">Reiniciar</button>
+        <button class="btn" id="btnSkip" aria-label="Saltar al siguiente bloque">Saltar</button>
+      </div>
+
+      <button class="quick" id="btnQuick">
+        ⚡ Arranque rápido <small>2 min · regla de los 2 minutos</small>
+      </button>
+
+      <!-- Música: aparece solo en los descansos -->
+      <div class="music" id="music" hidden>
+        <h3>♪ Música para el descanso</h3>
+        <div class="music-row">
+          <button class="btn btn-primary" id="btnMusic">▶ Escuchar música</button>
+          <button class="btn" id="btnNextSong" hidden aria-label="Otra canción al azar">🔀 Otra</button>
+        </div>
+        <p class="music-msg" id="musicMsg"></p>
+        <div class="music-frame" id="musicFrame"></div>
+      </div>
+
+      <details class="settings">
+        <summary>Ajustes</summary>
+        <div class="set-grid">
+          <div class="field"><label for="setFocus">Enfoque (min)</label><input id="setFocus" type="number" min="1" max="120" inputmode="numeric"></div>
+          <div class="field"><label for="setShort">Corto (min)</label><input id="setShort" type="number" min="1" max="60" inputmode="numeric"></div>
+          <div class="field"><label for="setLong">Largo (min)</label><input id="setLong" type="number" min="1" max="90" inputmode="numeric"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="setSound"> Alarma sonora al terminar</label>
+        <button class="btn" id="btnTestSound" type="button">🔔 Probar sonido</button>
+        <p class="set-label">Paleta de colores</p>
+        <div class="themes" role="group" aria-label="Paleta de colores">
+          <button class="theme-btn" data-theme="peonia" aria-pressed="true"><span class="dots"><i style="background:#f4a0a0"></i> <i style="background:#b9a2e8"></i> <i style="background:#f2c94c"></i> <i style="background:#b5d8c0"></i></span> Peonía</button>
+          <button class="theme-btn" data-theme="peonia-noche" aria-pressed="false"><span class="dots"><i style="background:#f4a3a0"></i> <i style="background:#b9a2e8"></i> <i style="background:#e8c15a"></i></span> Peonía noche</button>
+          <button class="theme-btn" data-theme="noche" aria-pressed="false"><span class="dots"><i style="background:#ff7a45"></i> <i style="background:#4fd1c5"></i> <i style="background:#6aa8ff"></i></span> Noche</button>
+        </div>
+      </details>
+    </section>
+
+    <!-- ===== TAREAS ===== -->
+    <section class="card" aria-label="Tareas">
+      <h2>Tareas atómicas</h2>
+      <form class="add-form" id="addForm">
+        <label class="sr-only" for="taskText">Nueva tarea</label>
+        <input type="text" id="taskText" placeholder="Una acción concreta…" maxlength="80" autocomplete="off" required>
+        <label class="sr-only" for="taskEst">Pomodoros estimados</label>
+        <input type="number" id="taskEst" value="2" min="1" max="20" inputmode="numeric" title="Pomodoros estimados">
+        <button class="btn" type="submit">Añadir</button>
+      </form>
+      <ul class="tasks" id="taskList"></ul>
+    </section>
+
+  </main>
+</div>
+
+<!-- Aviso visual -->
+<div class="toast" id="toast" role="alert" aria-live="assertive">
+  <p><b id="toastTitle"></b><span id="toastMsg"></span></p>
+  <button class="btn" id="toastClose">OK</button>
+</div>
+
+<script>
+/* ==========================================================
+   POMODORO ANTI-PROCRASTINACIÓN
+   Estructura: Estado → Persistencia → Audio → Temporizador → Tareas → Init
+   ========================================================== */
+"use strict";
+
+/* ---------- Utilidades ---------- */
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(n).padStart(2, "0");
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const MODE_NAME = { focus: "Enfoque", short: "Descanso corto", long: "Descanso largo", quick: "Arranque rápido" };
+
+/* ==========================================================
+   DEDICATORIA — SOLO SE EDITA AQUÍ, EN EL CÓDIGO
+   Cada vez que se abre la página se muestra un mensaje distinto
+   de esta lista (nunca el mismo dos veces seguidas).
+   Usa \n para un salto de línea. Añade o quita mensajes libremente.
+   ========================================================== */
+const DEDICATION_TO = "Rosalinda";
+
+/* ==========================================================
+   MÚSICA DEL DESCANSO — SOLO SE CONFIGURA AQUÍ, EN EL CÓDIGO
+   Pega aquí tus enlaces de YouTube (videos individuales), uno por línea,
+   entre comillas y con coma al final. Puedes poner 10 o los que quieras:
+     "https://www.youtube.com/watch?v=XXXXXXXXXXX",
+     "https://youtu.be/XXXXXXXXXXX",
+   En cada descanso suena una al azar (nunca la misma dos veces seguidas).
+   Si la lista está vacía, el botón de música no aparece.
+   ========================================================== */
+const MUSIC_URLS = [
+  // "https://www.youtube.com/watch?v=XXXXXXXXXXX",
+  // "https://youtu.be/XXXXXXXXXXX",
+];
+const MUSIC_IDS = MUSIC_URLS.map(youtubeId).filter(Boolean);   // ignora enlaces no válidos
+const DEDICATION_MESSAGES = [
+  "Que cada bloque de enfoque te acerque a lo que sueñas,\ny que cada descanso te recuerde cuánto vales. 🌸",
+  "Hoy no hace falta hacerlo todo:\nbasta con empezar.",
+  "Un paso pequeño también es avanzar.\nRespira, enfócate y confía en ti.",
+  "Tu constancia florece en silencio.\nSigue, que cada minuto cuenta. 🌷",
+  "Eres capaz de más de lo que imaginas.\nEmpieza con dos minutos y deja que el resto fluya.",
+  "Descansar también es parte del camino.\nLo estás haciendo mejor de lo que crees.",
+  "Que tu mente esté en calma y tu corazón en lo que amas.\nUn bloque a la vez. ✨",
+];
+
+/* ---------- Estado ---------- */
+const STORE_KEY = "pomodoro.v1";
+const state = {
+  settings: { focus: 25, short: 5, long: 15, sound: true, theme: "peonia" },
+  tasks: [],            // { id, text, est, done, completed }
+  activeId: null,
+  history: {},          // { "2026-11-21": 3 }
+  // Estado de ejecución (no persistente)
+  mode: "focus",
+  running: false,
+  endAt: 0,
+  remainingMs: 25 * 60000,
+  totalMs: 25 * 60000,
+};
+
+/* ---------- Persistencia (localStorage con try/catch) ---------- */
+function save() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      settings: state.settings, tasks: state.tasks,
+      activeId: state.activeId, history: state.history,
+    }));
+  } catch (_) { /* almacenamiento no disponible: la app sigue funcionando */ }
+}
+function load() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (!raw) return;
+    Object.assign(state.settings, raw.settings || {});
+    state.tasks = Array.isArray(raw.tasks) ? raw.tasks : [];
+    state.activeId = raw.activeId ?? null;
+    state.history = raw.history || {};  } catch (_) {}
+}
+
+/* ---------- Audio (Web Audio API, sin archivos) ---------- */
+let audioCtx = null;
+function unlockAudio() {           // se llama desde un gesto del usuario
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_) {}
+}
+function beep(freq, start, dur) {
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = "sine"; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(0.4, start + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(start); o.stop(start + dur + 0.05);
+}
+/* Alarma de fin de ciclo: campanilla ascendente repetida 3 veces (~3.5 s) + vibración en móvil */
+async function alarm(force = false) {
+  try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 500]); } catch (_) {}
+  if (!force && !state.settings.sound) return;
+  unlockAudio();
+  if (!audioCtx) return;
+  try { if (audioCtx.state !== "running") await audioCtx.resume(); } catch (_) {}
+  const t = audioCtx.currentTime + 0.05;
+  const notes = [784, 988, 1175, 1568];
+  for (let r = 0; r < 3; r++) notes.forEach((f, i) => beep(f, t + r * 1.2 + i * 0.18, 0.35));
+}
+
+/* ---------- Temporizador ---------- */
+const el = {
+  clock: $("clock"), ring: $("ring"), dial: $("dial"), stateLabel: $("stateLabel"),
+  activeLabel: $("activeLabel"), btnStart: $("btnStart"),
+};
+let tickId = null;
+
+const durationOf = (mode) => mode === "quick" ? 120000 : state.settings[mode] * 60000;
+
+function fmt(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}
+
+function setMode(mode, { autostart = false } = {}) {
+  stopTick();
+  if (mode !== "short" && mode !== "long") stopMusic();   // la música solo acompaña descansos
+  state.mode = mode;
+  state.running = false;
+  state.totalMs = state.remainingMs = durationOf(mode);
+  document.body.dataset.mode = mode;
+  document.querySelectorAll(".mode-btn").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+  render();
+  if (autostart) start();
+}
+
+function start() {
+  if (state.running) return;
+  unlockAudio();
+  askNotificationPermission();
+  state.running = true;
+  state.endAt = Date.now() + state.remainingMs;
+  startTicker();
+  render();
+}
+function pause() {
+  if (!state.running) return;
+  state.remainingMs = Math.max(0, state.endAt - Date.now());
+  state.running = false;
+  stopTick();
+  render();
+}
+function reset() {
+  stopTick();
+  state.running = false;
+  state.totalMs = state.remainingMs = durationOf(state.mode);
+  render();
+}
+/* El "latido" corre en un Web Worker: así el aviso llega a tiempo aunque la pestaña esté en segundo plano */
+let worker = null;
+function startTicker() {
+  stopTick();
+  try {
+    const blob = new Blob(["setInterval(() => postMessage(0), 250)"], { type: "text/javascript" });
+    worker = new Worker(URL.createObjectURL(blob));
+    worker.onmessage = () => tick();
+    worker.onerror = () => { if (worker) { worker.terminate(); worker = null; } tickId = setInterval(tick, 250); };
+  } catch (_) { tickId = setInterval(tick, 250); }
+}
+function stopTick() {
+  clearInterval(tickId); tickId = null;
+  if (worker) { worker.terminate(); worker = null; }
+}
+
+function tick() {
+  state.remainingMs = Math.max(0, state.endAt - Date.now());
+  if (state.remainingMs <= 0) return finish();
+  render();
+}
+
+/* Fin de ciclo: registra, avisa y propone el siguiente bloque */
+function finish() {
+  stopTick();
+  state.running = false;
+  state.remainingMs = 0;
+  const finished = state.mode;
+
+  if (finished === "focus") registerFocusBlock();
+
+  alarm();
+  el.dial.classList.add("done");
+  setTimeout(() => el.dial.classList.remove("done"), 1900);
+
+  let next, msg;
+  if (finished === "quick") {
+    next = "focus"; msg = "¡Inercia rota! Empieza el bloque de enfoque.";
+  } else if (finished === "focus") {
+    const n = state.history[today()] || 0;
+    next = n % 4 === 0 ? "long" : "short";
+    msg = next === "long" ? "Bloque completado. Toca un descanso largo." : "Bloque completado. Respira un momento.";
+  } else {
+    next = "focus"; msg = "Descanso terminado. Vuelve a la tarea.";
+  }
+
+  showToast(`${MODE_NAME[finished]} terminado`, msg);
+  systemNotify(`${MODE_NAME[finished]} terminado`, msg);
+  setMode(next, { autostart: finished === "quick" });
+}
+
+function registerFocusBlock() {
+  const d = today();
+  state.history[d] = (state.history[d] || 0) + 1;
+  const t = state.tasks.find((t) => t.id === state.activeId);
+  if (t) t.completed += 1;
+  save();
+  renderTasks();
+  renderStats();
+}
+
+/* ---------- Racha ---------- */
+function streakDays() {
+  let count = 0;
+  const d = new Date();
+  const key = (x) => `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`;
+  if (!state.history[key(d)]) d.setDate(d.getDate() - 1);   // hoy aún vacío no rompe la racha
+  while (state.history[key(d)] > 0) { count++; d.setDate(d.getDate() - 1); }
+  return count;
+}
+function renderStats() {
+  $("statToday").textContent = state.history[today()] || 0;
+  $("statStreak").textContent = streakDays();
+}
+
+/* ---------- Notificaciones ---------- */
+function showToast(title, msg) {
+  $("toastTitle").textContent = title;
+  $("toastMsg").textContent = msg;
+  $("toast").classList.add("show");
+  clearTimeout(showToast.t);
+  showToast.t = setTimeout(() => $("toast").classList.remove("show"), 10000);
+}
+function askNotificationPermission() {
+  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch (_) {}
+}
+function systemNotify(title, body) {
+  try { if ("Notification" in window && Notification.permission === "granted" && document.hidden) new Notification(title, { body }); } catch (_) {}
+}
+
+/* ---------- Render del temporizador ---------- */
+function render() {
+  const text = fmt(state.remainingMs);
+  el.clock.textContent = text;
+  el.stateLabel.textContent = MODE_NAME[state.mode];
+  const frac = state.totalMs ? state.remainingMs / state.totalMs : 1;
+  el.ring.style.strokeDashoffset = String(100 * (1 - frac));
+  el.btnStart.textContent = state.running ? "Pausar" : (state.remainingMs < state.totalMs ? "Reanudar" : "Iniciar");
+
+  // <title> dinámico
+  document.title = state.running
+    ? `${text} · ${MODE_NAME[state.mode]}`
+    : "Foco · Pomodoro anti-procrastinación";
+
+  const t = state.tasks.find((t) => t.id === state.activeId);
+  el.activeLabel.textContent = t ? t.text : "Sin tarea activa";
+
+  $("music").hidden = !MUSIC_IDS.length || !(state.mode === "short" || state.mode === "long");
+}
+
+/* ---------- Música de YouTube (solo en descansos) ---------- */
+function youtubeId(url) {
+  try {
+    const u = new URL(url.trim());
+    const host = u.hostname.replace(/^(www|m|music)\./, "");
+    let id = null;
+    if (host === "youtu.be") id = u.pathname.slice(1);
+    else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      if (u.pathname === "/watch") id = u.searchParams.get("v");
+      else { const m = u.pathname.match(/^\/(embed|shorts|live|v)\/([\w-]{11})/); if (m) id = m[2]; }
+    }
+    return id && /^[\w-]{11}$/.test(id) ? id : null;
+  } catch (_) { return null; }
+}
+let musicOn = false;
+let lastMusicId = null;
+function playMusic() {
+  if (!MUSIC_IDS.length) return;
+  let id;
+  do { id = MUSIC_IDS[Math.floor(Math.random() * MUSIC_IDS.length)]; }
+  while (MUSIC_IDS.length > 1 && id === lastMusicId);   // no repetir la anterior
+  lastMusicId = id;
+  const msg = $("musicMsg");
+  $("btnNextSong").hidden = false;
+  const f = document.createElement("iframe");
+  f.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`;
+  f.title = "Música de descanso";
+  f.allow = "autoplay; encrypted-media; picture-in-picture";
+  f.referrerPolicy = "strict-origin-when-cross-origin";
+  f.allowFullscreen = true;
+  $("musicFrame").replaceChildren(f);
+  musicOn = true;
+  $("btnMusic").textContent = "Detener";
+  msg.innerHTML = "";
+  const a = document.createElement("a");
+  a.href = `https://www.youtube.com/watch?v=${id}`; a.target = "_blank"; a.rel = "noopener";
+  a.textContent = "¿No suena? Ábrela en YouTube";
+  msg.append(a);
+}
+function stopMusic() {
+  $("musicFrame").replaceChildren();   // quitar el iframe detiene el audio
+  musicOn = false;
+  $("btnNextSong").hidden = true;
+  $("btnMusic").textContent = "▶ Escuchar música";
+}
+
+/* ---------- Paleta ---------- */
+function applyTheme(name) {
+  if (!["peonia", "peonia-noche", "noche"].includes(name)) name = "peonia";   // valores antiguos → por defecto
+  state.settings.theme = name;
+  document.documentElement.dataset.theme = name;
+  document.documentElement.style.colorScheme = name === "peonia" ? "light" : "dark";
+  document.querySelectorAll(".theme-btn").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.theme === name)));
+}
+
+/* ---------- Dedicatoria ---------- */
+function renderDedication() {
+  const LAST_KEY = "pomodoro.lastDedication";
+  let last = -1;
+  try { last = parseInt(localStorage.getItem(LAST_KEY), 10); } catch (_) {}
+  let i;
+  do { i = Math.floor(Math.random() * DEDICATION_MESSAGES.length); }
+  while (DEDICATION_MESSAGES.length > 1 && i === last);      // no repetir el anterior
+  try { localStorage.setItem(LAST_KEY, String(i)); } catch (_) {}
+  $("dedTo").textContent = DEDICATION_TO;
+  $("dedText").textContent = DEDICATION_MESSAGES[i];
+}
+
+/* ---------- Tareas ---------- */
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+function addTask(text, est) {
+  state.tasks.push({ id: uid(), text: text.trim(), est: Math.min(20, Math.max(1, est || 1)), completed: 0, done: false });
+  if (!state.activeId) state.activeId = state.tasks[state.tasks.length - 1].id;
+  save(); renderTasks(); render();
+}
+function toggleDone(id) {
+  const t = state.tasks.find((t) => t.id === id);
+  if (!t) return;
+  t.done = !t.done;
+  if (t.done && state.activeId === id) state.activeId = null;
+  save(); renderTasks(); render();
+}
+function removeTask(id) {
+  state.tasks = state.tasks.filter((t) => t.id !== id);
+  if (state.activeId === id) state.activeId = null;
+  save(); renderTasks(); render();
+}
+function setActive(id) {
+  const t = state.tasks.find((t) => t.id === id);
+  if (!t || t.done) return;
+  state.activeId = state.activeId === id ? null : id;   // pulsar de nuevo = desactivar
+  save(); renderTasks(); render();
+}
+
+function renderTasks() {
+  const ul = $("taskList");
+  ul.replaceChildren();
+
+  if (!state.tasks.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.innerHTML = "<strong>Nada pendiente.</strong>Escribe una sola acción pequeña. Ej.: «Abrir el documento y escribir el título».";
+    ul.append(li);
+    return;
+  }
+
+  for (const t of state.tasks) {
+    const li = document.createElement("li");
+    li.className = "task" + (t.done ? " is-done" : "") + (t.id === state.activeId ? " is-active" : "");
+
+    const chk = document.createElement("button");
+    chk.className = "icon-btn";
+    chk.setAttribute("aria-label", t.done ? "Marcar como pendiente" : "Marcar como completada");
+    chk.innerHTML = `<span class="checkbox">${t.done ? "✓" : ""}</span>`;
+    chk.onclick = () => toggleDone(t.id);
+
+    const main = document.createElement("button");
+    main.className = "task-main";
+    main.disabled = t.done;
+    main.setAttribute("aria-pressed", String(t.id === state.activeId));
+    main.title = "Usar como tarea activa";
+    const title = document.createElement("span"); title.className = "task-title"; title.textContent = t.text;
+    const hint = document.createElement("span"); hint.className = "task-hint";
+    hint.textContent = t.id === state.activeId ? "Tarea activa" : (t.done ? "Hecha" : "Marcar activa");
+    main.append(title, hint);
+    main.onclick = () => setActive(t.id);
+
+    const pomos = document.createElement("span");
+    pomos.className = "pomos";
+    pomos.title = "Completados / estimados";
+    pomos.innerHTML = `<b>${t.completed}</b>/${t.est} 🍅`;
+
+    const del = document.createElement("button");
+    del.className = "icon-btn del";
+    del.setAttribute("aria-label", `Eliminar «${t.text}»`);
+    del.textContent = "✕";
+    del.onclick = () => removeTask(t.id);
+
+    li.append(chk, main, pomos, del);
+    ul.append(li);
+  }
+}
+
+/* ---------- Ajustes ---------- */
+function bindSettings() {
+  const map = { setFocus: "focus", setShort: "short", setLong: "long" };
+  for (const [id, key] of Object.entries(map)) {
+    const input = $(id);
+    input.value = state.settings[key];
+    input.addEventListener("change", () => {
+      const v = Math.min(+input.max, Math.max(1, parseInt(input.value, 10) || state.settings[key]));
+      input.value = v;
+      state.settings[key] = v;
+      save();
+      if (!state.running && state.mode === key) {      // refleja el cambio si está en reposo
+        state.totalMs = state.remainingMs = durationOf(key);
+        render();
+      }
+    });
+  }
+  $("setSound").checked = state.settings.sound;
+  $("setSound").addEventListener("change", (e) => { state.settings.sound = e.target.checked; save(); });
+}
+
+/* ---------- Eventos ---------- */
+function bindEvents() {
+  el.btnStart.onclick = () => (state.running ? pause() : start());
+  $("btnReset").onclick = reset;
+  $("btnSkip").onclick = () => {
+    const order = { focus: "short", short: "focus", long: "focus", quick: "focus" };
+    setMode(order[state.mode]);
+  };
+  $("btnQuick").onclick = () => { setMode("quick", { autostart: true }); };
+  document.querySelectorAll(".mode-btn").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
+  $("toastClose").onclick = () => $("toast").classList.remove("show");
+
+  $("btnTestSound").onclick = () => { unlockAudio(); alarm(true); };
+
+  // Música
+  $("btnMusic").onclick = () => (musicOn ? stopMusic() : playMusic());
+  $("btnNextSong").onclick = () => { stopMusic(); playMusic(); };
+
+  // Paleta
+  document.querySelectorAll(".theme-btn").forEach((b) =>
+    (b.onclick = () => { applyTheme(b.dataset.theme); save(); }));
+
+  $("addForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("taskText").value;
+    if (!text.trim()) return;
+    addTask(text, parseInt($("taskEst").value, 10));
+    $("taskText").value = "";
+    $("taskText").focus();
+  });
+
+  // Atajo: barra espaciadora inicia/pausa (si no se escribe en un campo)
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && !/INPUT|TEXTAREA|BUTTON|SUMMARY/.test(document.activeElement.tagName)) {
+      e.preventDefault();
+      state.running ? pause() : start();
+    }
+  });
+
+  // Al volver a la pestaña, sincroniza el reloj (los timers se frenan en segundo plano)
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && state.running) tick(); });
+}
+
+/* ---------- Init ---------- */
+load();
+applyTheme(state.settings.theme);
+renderDedication();
+bindSettings();
+bindEvents();
+setMode("focus");
+renderTasks();
+renderStats();
+</script>
+</body>
+</html>

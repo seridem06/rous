@@ -477,6 +477,15 @@ const MUSIC_URLS = [
   // "https://youtu.be/XXXXXXXXXXX",
 ];
 const MUSIC_IDS = MUSIC_URLS.map(youtubeId).filter(Boolean);   // ignora enlaces no válidos
+
+/* ==========================================================
+   CONTADOR DE VISITAS (PRIVADO) — SOLO SE CONFIGURA AQUÍ
+   Usa GoatCounter (gratis, sin cookies). Solo tú ves el panel, con tu cuenta.
+   1) Crea tu cuenta en https://www.goatcounter.com y elige un código, p. ej. "rosalinda-foco".
+   2) Pégalo abajo. Tus visitas las verás en  https://TU-CODIGO.goatcounter.com
+   Si lo dejas vacío (""), no se cuenta nada. Las visitas desde localhost no se cuentan.
+   ========================================================== */
+const GOATCOUNTER_CODE = "";
 const DEDICATION_MESSAGES = [
   "Que cada bloque de enfoque te acerque a lo que sueñas,\ny que cada descanso te recuerde cuánto vales. 🌸",
   "Hoy no hace falta hacerlo todo:\nbasta con empezar.",
@@ -994,6 +1003,16 @@ bindEvents();
 setMode("focus");
 renderTasks();
 renderStats();
+
+/* Contador de visitas privado (ver GOATCOUNTER_CODE arriba) */
+(function initVisitCounter() {
+  if (!/^[a-z0-9-]+$/i.test(GOATCOUNTER_CODE)) return;   // vacío o inválido: no hace nada
+  const s = document.createElement("script");
+  s.async = true;
+  s.dataset.goatcounter = `https://${GOATCOUNTER_CODE}.goatcounter.com/count`;
+  s.src = "https://gc.zgo.at/count.js";
+  document.head.append(s);
+})();
 </script>
 </body>
 </html>

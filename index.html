@@ -106,10 +106,11 @@ header.top {
 .stats { display: flex; gap: var(--s3); font: 500 13px/1 var(--font-mono); color: var(--muted); }
 .stats b { color: var(--text); font-weight: 700; }
 
-.grid { display: grid; gap: var(--s4); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); }   /* minmax(0,…) evita desbordes en móvil */
+.grid > * { min-width: 0; }
 @media (min-width: 880px) {
   .app { padding: var(--s5) var(--s5) var(--s6); }
-  .grid { grid-template-columns: 1.25fr 1fr; align-items: start; gap: var(--s5); }
+  .grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; gap: var(--s5); }
 }
 
 .card {
@@ -151,7 +152,11 @@ h2 { margin: 0 0 var(--s3); font: 600 13px/1 var(--font-mono); letter-spacing: .
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.controls { display: grid; grid-template-columns: 1fr auto auto; gap: var(--s2); }
+.controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--s2); }
+@media (max-width: 480px) {
+  .controls { grid-template-columns: 1fr 1fr; }
+  .controls .btn-primary { grid-column: 1 / -1; }   /* Iniciar ocupa toda la fila */
+}
 .btn {
   min-height: 48px; padding: 0 var(--s4); border-radius: 12px;
   border: 1px solid var(--line); background: var(--surface-2); font-weight: 600;
@@ -166,7 +171,8 @@ h2 { margin: 0 0 var(--s3); font: 600 13px/1 var(--font-mono); letter-spacing: .
 .quick {
   margin-top: var(--s3); width: 100%; min-height: 48px; border-radius: 12px;
   border: 1px dashed var(--line); background: transparent; color: var(--text);
-  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--s1) var(--s2);
+  padding: var(--s2) var(--s3); text-align: center;
   transition: border-color .2s ease-out, color .2s ease-out;
 }
 .quick:hover { border-color: var(--gold); color: var(--gold); }
@@ -195,7 +201,12 @@ details.settings[open] summary::after { content: "−"; }
 /* ==========================================================
    5. TAREAS
    ========================================================== */
-.add-form { display: grid; grid-template-columns: 1fr 72px auto; gap: var(--s2); margin-bottom: var(--s3); }
+.add-form { display: grid; grid-template-columns: minmax(0, 1fr) 72px auto; gap: var(--s2); margin-bottom: var(--s3); }
+.add-form input { width: 100%; }
+@media (max-width: 420px) {
+  .add-form { grid-template-columns: minmax(0, 1fr) 72px; }
+  .add-form .btn { grid-column: 1 / -1; }   /* el botón pasa a su propia fila */
+}
 .add-form input[type="text"], .add-form input[type="number"] {
   min-height: 48px; padding: 0 var(--s3); background: var(--bg);
   border: 1px solid var(--line); border-radius: 12px; min-width: 0;
@@ -267,7 +278,7 @@ ul.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2
 .music input::placeholder { color: var(--muted); opacity: .75; }
 .music-msg { margin: 0; font-size: 13px; color: var(--muted); }
 .music-msg a { color: var(--accent-ink); }
-.music-frame iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 10px; }
+.music-frame iframe { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0; border-radius: 10px; }
 
 /* Selector de paleta */
 .themes { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
@@ -456,7 +467,13 @@ const DEDICATION_TO = "Rosalinda";
    Si la lista está vacía, el botón de música no aparece.
    ========================================================== */
 const MUSIC_URLS = [
-  // "https://www.youtube.com/watch?v=XXXXXXXXXXX",
+  "https://www.youtube.com/watch?v=2j3x0VYnehg&list=RD2j3x0VYnehg&start_radio=1",
+  "https://www.youtube.com/watch?v=87i4d58nS70&list=RD87i4d58nS70&start_radio=1",
+  "https://www.youtube.com/watch?v=5g2hT4GmAGU&list=RD5g2hT4GmAGU&start_radio=1",
+  "https://www.youtube.com/watch?v=YhmsLH6Pm5w&list=RDYhmsLH6Pm5w&start_radio=1",
+  "https://www.youtube.com/watch?v=N9dv93_T0RM&list=RDN9dv93_T0RM&start_radio=1",
+  "https://www.youtube.com/watch?v=5pCbFvon3Rs&list=RD5pCbFvon3Rs&start_radio=1",
+  // Agrega más aquí (hasta las que quieras):
   // "https://youtu.be/XXXXXXXXXXX",
 ];
 const MUSIC_IDS = MUSIC_URLS.map(youtubeId).filter(Boolean);   // ignora enlaces no válidos
@@ -689,13 +706,16 @@ function render() {
   const t = state.tasks.find((t) => t.id === state.activeId);
   el.activeLabel.textContent = t ? t.text : "Sin tarea activa";
 
-  $("music").hidden = !MUSIC_IDS.length || !(state.mode === "short" || state.mode === "long");
+  $("music").hidden = !(state.mode === "short" || state.mode === "long");
 }
 
 /* ---------- Música de YouTube (solo en descansos) ---------- */
 function youtubeId(url) {
   try {
-    const u = new URL(url.trim());
+    let s = String(url).trim().replace(/^["']|["']$/g, "");
+    if (/^[\w-]{11}$/.test(s)) return s;                    // acepta el ID suelto
+    if (!/^https?:\/\//i.test(s)) s = "https://" + s;       // acepta enlaces sin https://
+    const u = new URL(s);
     const host = u.hostname.replace(/^(www|m|music)\./, "");
     let id = null;
     if (host === "youtu.be") id = u.pathname.slice(1);
@@ -706,36 +726,88 @@ function youtubeId(url) {
     return id && /^[\w-]{11}$/.test(id) ? id : null;
   } catch (_) { return null; }
 }
+/* Reproductor con la API oficial de YouTube: detecta errores, salta a otra canción
+   si una no se puede incrustar, y pasa sola a la siguiente cuando termina. */
 let musicOn = false;
 let lastMusicId = null;
-function playMusic() {
-  if (!MUSIC_IDS.length) return;
-  let id;
-  do { id = MUSIC_IDS[Math.floor(Math.random() * MUSIC_IDS.length)]; }
-  while (MUSIC_IDS.length > 1 && id === lastMusicId);   // no repetir la anterior
-  lastMusicId = id;
+let ytPlayer = null;
+let ytApi = null;
+
+function loadYouTubeApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (ytApi) return ytApi;
+  ytApi = new Promise((resolve, reject) => {
+    window.onYouTubeIframeAPIReady = resolve;
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
+    s.onerror = () => { ytApi = null; reject(new Error("api")); };
+    document.head.append(s);
+    setTimeout(() => { if (!(window.YT && window.YT.Player)) { ytApi = null; reject(new Error("timeout")); } }, 10000);
+  });
+  return ytApi;
+}
+
+function musicNote(text, id) {
   const msg = $("musicMsg");
-  $("btnNextSong").hidden = false;
-  const f = document.createElement("iframe");
-  f.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`;
-  f.title = "Música de descanso";
-  f.allow = "autoplay; encrypted-media; picture-in-picture";
-  f.referrerPolicy = "strict-origin-when-cross-origin";
-  f.allowFullscreen = true;
-  $("musicFrame").replaceChildren(f);
+  msg.textContent = text + " ";
+  if (id) {
+    const a = document.createElement("a");
+    a.href = `https://www.youtube.com/watch?v=${id}`; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "Ábrela en YouTube";
+    msg.append(a);
+  }
+}
+
+function destroyPlayer() {
+  if (ytPlayer) { try { ytPlayer.destroy(); } catch (_) {} ytPlayer = null; }
+  $("musicFrame").replaceChildren();
+}
+
+async function playMusic(tried = []) {
+  if (!MUSIC_IDS.length) return;
+  const pool = MUSIC_IDS.filter((x) => !tried.includes(x));
+  if (!pool.length) { musicNote("Ninguna canción se pudo reproducir aquí.", lastMusicId); return; }
+  let id;
+  do { id = pool[Math.floor(Math.random() * pool.length)]; }
+  while (pool.length > 1 && id === lastMusicId);          // no repetir la anterior
+  lastMusicId = id;
+
+  destroyPlayer();
   musicOn = true;
   $("btnMusic").textContent = "Detener";
-  msg.innerHTML = "";
-  const a = document.createElement("a");
-  a.href = `https://www.youtube.com/watch?v=${id}`; a.target = "_blank"; a.rel = "noopener";
-  a.textContent = "¿No suena? Ábrela en YouTube";
-  msg.append(a);
+  $("btnNextSong").hidden = false;
+  musicNote("Cargando música…");
+
+  const holder = document.createElement("div");
+  $("musicFrame").append(holder);
+  try { await loadYouTubeApi(); }
+  catch (_) { musicNote("No se pudo cargar YouTube (¿sin conexión?).", id); return; }
+  if (!musicOn) return;                                    // el usuario detuvo mientras cargaba
+
+  ytPlayer = new YT.Player(holder, {
+    videoId: id, width: "100%",
+    playerVars: { autoplay: 1, rel: 0, playsinline: 1 },
+    events: {
+      onReady: (e) => { e.target.playVideo(); musicNote("Sonando en el descanso.", id); },
+      onStateChange: (e) => { if (e.data === 0 /* terminó */ && musicOn) playMusic([]); },
+      onError: (e) => {
+        if (e.data === 153 || e.data === 152) {            // sin origen/referrer: típico de abrir el archivo con doble clic
+          musicNote("YouTube bloqueó el reproductor (error " + e.data + "). Abre la app desde http://localhost o un hosting, no con doble clic.", id);
+        } else {                                           // 100/101/150: ese video no permite incrustarse → probar otro
+          musicNote("Esa canción no permite reproducirse aquí; probando otra…");
+          setTimeout(() => { if (musicOn) playMusic([...tried, id]); }, 800);
+        }
+      },
+    },
+  });
 }
+
 function stopMusic() {
-  $("musicFrame").replaceChildren();   // quitar el iframe detiene el audio
+  destroyPlayer();                                         // quitar el reproductor detiene el audio
   musicOn = false;
   $("btnNextSong").hidden = true;
   $("btnMusic").textContent = "▶ Escuchar música";
+  if (MUSIC_IDS.length) $("musicMsg").textContent = "";
 }
 
 /* ---------- Paleta ---------- */
@@ -874,7 +946,19 @@ function bindEvents() {
 
   // Música
   $("btnMusic").onclick = () => (musicOn ? stopMusic() : playMusic());
-  $("btnNextSong").onclick = () => { stopMusic(); playMusic(); };
+  $("btnNextSong").onclick = () => playMusic([]);
+
+  // Estado de la lista de canciones (el botón siempre se ve en los descansos)
+  if (!MUSIC_IDS.length) {
+    $("btnMusic").disabled = true;
+    $("btnMusic").textContent = "♪ Música sin configurar";
+    $("musicMsg").textContent = MUSIC_URLS.length
+      ? "Ningún enlace de MUSIC_URLS es válido. Usa enlaces de videos de YouTube."
+      : "Agrega enlaces de YouTube en MUSIC_URLS (dentro de index.html).";
+    console.warn("MUSIC_URLS vacío o inválido:", MUSIC_URLS);
+  } else if (MUSIC_IDS.length < MUSIC_URLS.length) {
+    $("musicMsg").textContent = `${MUSIC_URLS.length - MUSIC_IDS.length} enlace(s) de MUSIC_URLS no son válidos y se ignoran.`;
+  }
 
   // Paleta
   document.querySelectorAll(".theme-btn").forEach((b) =>
